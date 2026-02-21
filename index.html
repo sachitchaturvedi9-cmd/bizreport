@@ -91,14 +91,14 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
   <div class="key-section" id="keySection">
     <div class="key-row">
       <div class="search-wrap">
-        <input type="password" id="apiKeyInput" placeholder="Gemini API Key daalo — aistudio.google.com se free milti hai" />
+        <input type="password" id="apiKeyInput" placeholder="OpenRouter API Key daalo — openrouter.ai se free milti hai" />
       </div>
       <button class="btn-secondary" onclick="saveKey()">SAVE KEY</button>
     </div>
     <div id="keyStatus"></div>
   </div>
 
-  <div class="search-section">
+  <div style="margin-bottom:16px;"><button class="btn-link" style="color:#c8ff00;font-family:IBM Plex Mono,monospace;font-size:0.75rem;background:none;border:1px solid #2a2d33;padding:8px 16px;border-radius:4px;cursor:pointer;" onclick="localStorage.removeItem('gemini_key');document.getElementById('keySection').style.display='block';this.parentElement.style.display='none'">🔑 Change API Key</button></div><div class="search-section">
     <div class="search-wrap">
       <input type="text" id="companyInput" placeholder="Company name daalo — e.g. Apple, Reliance, Samsung" />
     </div>
@@ -203,15 +203,14 @@ window.addEventListener('load', function() {
   });
 });
 // ────────────────────────────────────────────
-
-async function getReport() {
+  async function getReport() {
   var company = document.getElementById('companyInput').value.trim();
   if (!company) { showError('Company ka naam toh dalo bhai!'); return; }
 
   var apiKey = getKey();
   if (!apiKey) {
     document.getElementById('keySection').style.display = 'block';
-    showError('Pehle Gemini API Key save karo upar wale box mein!');
+    showError('Pehle OpenRouter API Key save karo upar wale box mein!');
     return;
   }
 
@@ -232,28 +231,36 @@ async function getReport() {
 
   try {
     var response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
+      'https://openrouter.ai/api/v1/chat/completions',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey,
+          'HTTP-Referer': window.location.href,
+          'X-Title': 'BizReport AI'
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-3.1-8b-instruct:free',
+          messages: [{ role: 'user', content: prompt }]
+        })
       }
     );
 
     if (!response.ok) {
       var errData = await response.json().catch(function() { return {}; });
       var errMsg = (errData.error && errData.error.message) ? errData.error.message : ('HTTP ' + response.status);
-      if (response.status === 400 || response.status === 403 || response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         localStorage.removeItem('gemini_key');
         document.getElementById('keySection').style.display = 'block';
-        showError('API Key invalid ya expired hai. Naya key daalo. (' + errMsg + ')');
+        showError('API Key invalid hai. Naya key daalo. (' + errMsg + ')');
         return;
       }
       throw new Error(errMsg);
     }
 
     var data = await response.json();
-    var rawText = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) ? data.candidates[0].content.parts[0].text : '';
+    var rawText = (data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : '';
     if (!rawText) throw new Error('Empty response from API');
 
     rawText = rawText.replace(/```json|```/g, '').trim();
